@@ -267,15 +267,10 @@ void AnalogFxAudioProcessorEditor::buildKnob(const juce::String& paramId, const 
     auto slider = std::make_unique<juce::Slider>(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
     slider->setComponentID(paramId);
     
-    if (paramId.startsWith("nv_")) slider->setLookAndFeel(&neveLaf);
-    else if (paramId.startsWith("pu_")) slider->setLookAndFeel(&pultecLaf);
-    else if (paramId.startsWith("nc76_")) slider->setLookAndFeel(&nc76Laf);
-    else if (paramId.startsWith("fc_")) slider->setLookAndFeel(&fairchildLaf);
-    else if (paramId.startsWith("la2a_")) slider->setLookAndFeel(&la2aLaf);
-    else if (paramId.startsWith("mc_")) slider->setLookAndFeel(&modCompLaf);
-    else if (paramId.startsWith("mq_")) slider->setLookAndFeel(&modEqLaf);
-    else if (paramId.startsWith("band") || paramId.startsWith("lowpass") || paramId.startsWith("highpass") || paramId.startsWith("ic") || paramId == "drive_db" || paramId == "gain_db") slider->setLookAndFeel(&dirtEqLaf);
-    else slider->setLookAndFeel(&modPreLaf); // Default for shared parameters until updateVisibility takes over
+    if (section == 0) slider->setLookAndFeel(&preLaf);
+    else if (section == 1) slider->setLookAndFeel(&compLaf);
+    else if (section == 2) slider->setLookAndFeel(&eqLaf);
+    else if (section == 3) slider->setLookAndFeel(&outputLaf);
     
     if (paramId.containsIgnoreCase("gain") || paramId.containsIgnoreCase("drive") || paramId.containsIgnoreCase("db") || paramId.containsIgnoreCase("atten") || paramId.containsIgnoreCase("thresh"))
         slider->setTextValueSuffix(" dB");
@@ -414,20 +409,10 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
         check(outputSliders);
     };
 
-    if (preType == 2) { updateLaf("preamp_drive", &telefunkenLaf); updateLaf("preamp_trim", &telefunkenLaf); }
-    else if (preType == 3) { updateLaf("preamp_drive", &neveLaf); updateLaf("preamp_trim", &neveLaf); }
-    else if (preType == 4) { updateLaf("preamp_drive", &modPreLaf); updateLaf("preamp_trim", &modPreLaf); }
-
-    if (compType == 2) updateLaf("comp_trim", &nc76Laf);
-    else if (compType == 3) updateLaf("comp_trim", &la2aLaf);
-    else if (compType == 4) updateLaf("comp_trim", &fairchildLaf);
-    else if (compType == 5) updateLaf("comp_trim", &modCompLaf);
-
-    if (eqType == 2) updateLaf("eq_trim", &dirtEqLaf);
-    else if (eqType == 3) updateLaf("eq_trim", &neveLaf);
-    else if (eqType == 4) updateLaf("eq_trim", &pultecLaf);
-    else if (eqType == 5) updateLaf("eq_trim", &modEqLaf);
-
+    updateLaf("preamp_drive", &preLaf);
+    updateLaf("preamp_trim", &preLaf);
+    updateLaf("comp_trim", &compLaf);
+    updateLaf("eq_trim", &eqLaf);
     updateLaf("output_drive", &outputLaf);
 
     // Preamp Visibility
