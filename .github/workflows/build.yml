@@ -1,0 +1,115 @@
+name: Build Audio Plugin
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_windows:
+    name: Build Windows
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure CMake
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Zip Artifact
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/AnalogFx_artefacts/Release/VST3/AnalogFx.vst3 -DestinationPath AnalogFx_Windows.zip
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-VST3
+          path: AnalogFx_Windows.zip
+
+  build_macos:
+    name: Build macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0"
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Zip Artifacts
+        run: |
+          cd build/AnalogFx_artefacts/Release
+          zip -r ../../../AnalogFx_macOS_VST3.zip VST3/AnalogFx.vst3
+          zip -r ../../../AnalogFx_macOS_AU.zip AU/AnalogFx.component
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-VST3
+          path: AnalogFx_macOS_VST3.zip
+      - name: Upload AU
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-AU
+          path: AnalogFx_macOS_AU.zip
+
+  build_linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev \
+            libcurl4-openssl-dev libfreetype6-dev libx11-dev libxcomposite-dev \
+            libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libwebkit2gtk-4.0-dev libglu1-mesa-dev mesa-common-dev
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Zip Artifact
+        run: |
+          cd build/AnalogFx_artefacts/Release/VST3
+          zip -r ../../../../AnalogFx_Linux.zip AnalogFx.vst3
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-VST3
+          path: AnalogFx_Linux.zip
+
+  create_release:
+    name: Create Release
+    needs: [build_windows, build_macos, build_linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: AnalogFx v1.0.${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/Windows-VST3/*.zip
+            artifacts/macOS-VST3/*.zip
+            artifacts/macOS-AU/*.zip
+            artifacts/Linux-VST3/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
