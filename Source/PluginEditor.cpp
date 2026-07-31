@@ -258,8 +258,104 @@ void AnalogFxAudioProcessorEditor::timerCallback()
     compMeterVal = juce::jmax(compRMS, compMeterVal * 0.8f);
     eqMeterVal = juce::jmax(eqRMS, eqMeterVal * 0.8f);
     compGRVal = audioProcessor.compGR.load();
+
+    tapeReelAngle += 0.06f;
+    if (tapeReelAngle > juce::MathConstants<float>::twoPi) tapeReelAngle -= juce::MathConstants<float>::twoPi;
+    
+    tubeGlowPhase += 0.04f;
+    if (tubeGlowPhase > juce::MathConstants<float>::twoPi) tubeGlowPhase -= juce::MathConstants<float>::twoPi;
     
     repaint();
+}
+
+void AnalogFxAudioProcessorEditor::drawVacuumTube(juce::Graphics& g, juce::Rectangle<float> bounds, float glowAmount)
+{
+    auto w = bounds.getWidth();
+    auto h = bounds.getHeight();
+    auto cx = bounds.getCentreX();
+    auto cy = bounds.getCentreY();
+
+    // Outer Glass Envelope
+    juce::Path tubePath;
+    tubePath.addRoundedRectangle(cx - w * 0.3f, cy - h * 0.45f, w * 0.6f, h * 0.9f, w * 0.25f);
+
+    // Dark Glass Gradient
+    juce::ColourGradient glassGrad(juce::Colour(0x66333333), cx, cy - h * 0.4f, juce::Colour(0xaa111111), cx, cy + h * 0.4f, false);
+    g.setGradientFill(glassGrad);
+    g.fillPath(tubePath);
+
+    // Glowing Filament Wire
+    float pulse = 0.75f + 0.25f * std::sin(tubeGlowPhase);
+    juce::Colour filamentCol = juce::Colour(0xffff5500).withAlpha(juce::jlimit(0.2f, 1.0f, glowAmount * pulse));
+
+    // Outer Heat Glow Aura
+    g.setColour(filamentCol.withAlpha(0.25f * pulse));
+    g.fillEllipse(cx - w * 0.45f, cy - h * 0.25f, w * 0.9f, h * 0.55f);
+
+    // Core Glowing Wire Loops
+    juce::Path wire;
+    wire.startNewSubPath(cx - w * 0.15f, cy + h * 0.3f);
+    wire.lineTo(cx - w * 0.1f, cy - h * 0.1f);
+    wire.quadraticTo(cx, cy - h * 0.25f, cx + w * 0.1f, cy - h * 0.1f);
+    wire.lineTo(cx + w * 0.15f, cy + h * 0.3f);
+
+    g.setColour(filamentCol);
+    g.strokePath(wire, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Core Yellow Heat Line
+    g.setColour(juce::Colours::yellow.withAlpha(glowAmount * pulse));
+    g.strokePath(wire, juce::PathStrokeType(1.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Metallic Base Pin Connector
+    g.setColour(juce::Colour(0xff444444));
+    g.fillRect(cx - w * 0.25f, cy + h * 0.4f, w * 0.5f, h * 0.1f);
+
+    // Glass Reflection Specular Line
+    g.setColour(juce::Colours::white.withAlpha(0.3f));
+    g.drawLine(cx - w * 0.22f, cy - h * 0.35f, cx - w * 0.22f, cy + h * 0.3f, 1.5f);
+}
+
+void AnalogFxAudioProcessorEditor::drawTapeReels(juce::Graphics& g, juce::Rectangle<float> bounds, float rotationAngle)
+{
+    auto r = bounds.getHeight() * 0.38f;
+    auto cy = bounds.getCentreY();
+    auto leftX = bounds.getX() + bounds.getWidth() * 0.3f;
+    auto rightX = bounds.getX() + bounds.getWidth() * 0.7f;
+
+    auto drawSingleReel = [&](float cx, float angle) {
+        // Metallic Reel Flange Base
+        g.setColour(juce::Colour(0xff222832));
+        g.fillEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
+        g.setColour(juce::Colour(0xff667080));
+        g.drawEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f, 1.5f);
+
+        // Dark Magnetic Tape Pack
+        float tapeRadius = r * 0.82f;
+        g.setColour(juce::Colour(0xff120a06));
+        g.fillEllipse(cx - tapeRadius, cy - tapeRadius, tapeRadius * 2.0f, tapeRadius * 2.0f);
+
+        // 3-Spoke Aluminum Hub Openings
+        g.setColour(juce::Colour(0xff454e5b));
+        for (int i = 0; i < 3; ++i) {
+            float spokeAngle = angle + i * (juce::MathConstants<float>::twoPi / 3.0f);
+            float hx = cx + (r * 0.5f) * std::cos(spokeAngle);
+            float hy = cy + (r * 0.5f) * std::sin(spokeAngle);
+            g.fillEllipse(hx - r * 0.22f, hy - r * 0.22f, r * 0.44f, r * 0.44f);
+        }
+
+        // Center Hub Cap
+        g.setColour(juce::Colour(0xff8a95a5));
+        g.fillEllipse(cx - r * 0.25f, cy - r * 0.25f, r * 0.5f, r * 0.5f);
+        g.setColour(juce::Colours::black);
+        g.drawEllipse(cx - r * 0.25f, cy - r * 0.25f, r * 0.5f, r * 0.5f, 1.0f);
+    };
+
+    drawSingleReel(leftX, rotationAngle);
+    drawSingleReel(rightX, -rotationAngle * 1.1f);
+
+    // Drawn Tape Path Line connecting reels
+    g.setColour(juce::Colour(0xff2d1e16));
+    g.drawLine(leftX, cy + r * 0.7f, rightX, cy + r * 0.7f, 2.5f);
 }
 
 void AnalogFxAudioProcessorEditor::buildKnob(const juce::String& paramId, const juce::String& name, int section)
@@ -409,6 +505,30 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
         check(outputSliders);
     };
 
+    // Update Preamp Knob Accent Color based on Model
+    if (preType == 2) preLaf.setAccentColour(juce::Colour(0xffff8c00));      // Telefunken (Warm Amber)
+    else if (preType == 3) preLaf.setAccentColour(juce::Colour(0xffe53935)); // Neve 1073 (Stepped Red)
+    else preLaf.setAccentColour(juce::Colour(0xff00e5ff));                   // Boutique (Cyan)
+
+    // Update Comp Knob Accent Color based on Model
+    if (compType == 2) compLaf.setAccentColour(juce::Colour(0xffffc107));      // 1176 (Amber VU)
+    else if (compType == 3) compLaf.setAccentColour(juce::Colour(0xff2979ff)); // LA-2A (Optical Blue)
+    else if (compType == 4) compLaf.setAccentColour(juce::Colour(0xffffd700)); // Fairchild (Gold)
+    else compLaf.setAccentColour(juce::Colour(0xffff9900));                   // Precision VCA (Amber)
+
+    // Update EQ Knob Accent Color based on Model
+    if (eqType == 2) eqLaf.setAccentColour(juce::Colour(0xffd4a359));          // Dirt EQ (Copper/Gold)
+    else if (eqType == 3) eqLaf.setAccentColour(juce::Colour(0xff00e5ff));     // Neve EQ (Cyan)
+    else if (eqType == 4) eqLaf.setAccentColour(juce::Colour(0xff00e5ff));     // Pultec (Seafoam Teal)
+    else eqLaf.setAccentColour(juce::Colour(0xff00ff88));                      // Surgical (Emerald)
+
+    // Update Output Stage Knob Accent Color based on Model
+    int outType = outputSelector.getSelectedId();
+    if (outType == 2) outputLaf.setAccentColour(juce::Colour(0xffff9900));     // Tape Saturation (Mahogany Amber)
+    else if (outType == 3) outputLaf.setAccentColour(juce::Colour(0xffff3d00));// Tube Valve (Crimson Red)
+    else if (outType == 4) outputLaf.setAccentColour(juce::Colour(0xffffc107));// Console (Brass Gold)
+    else outputLaf.setAccentColour(juce::Colour(0xffff00e5));                 // Clean Digital (Magenta)
+
     updateLaf("preamp_drive", &preLaf);
     updateLaf("preamp_trim", &preLaf);
     updateLaf("comp_trim", &compLaf);
@@ -532,42 +652,159 @@ void AnalogFxAudioProcessorEditor::paint(juce::Graphics& g)
     
     g.setColour(juce::Colour(0xff00e5ff));
     g.setFont(juce::Font(10.0f * currentScale, juce::Font::plain));
-    g.drawText("LOGIC PRO EDITION v2.1.1", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
+    g.drawText("LOGIC PRO EDITION v2.2.0", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
 
-    // 3. Logic Pro Translucent Glass Rack Cards
-    auto drawLogicCard = [&](int y, int cardH, const juce::String& title, juce::Colour accentCol, bool active) {
-        auto cardBounds = juce::Rectangle<float>(10.0f * currentScale, (float)y + 6.0f * currentScale,
-                                                (float)w - 20.0f * currentScale, (float)cardH - 12.0f * currentScale);
+    // 3. Logic Pro Hardware Section Cards & Banners with Model-Specific Color Themes
+    auto drawHardwareCard = [&](int sectionIndex, int y, int cardH, int type) {
+        auto cardBounds = juce::Rectangle<float>(10.0f * currentScale, (float)y + 4.0f * currentScale,
+                                                (float)w - 20.0f * currentScale, (float)cardH - 8.0f * currentScale);
 
-        // Translucent Glass Body
-        g.setColour(juce::Colour(0xff181d27).withAlpha(0.85f));
+        juce::Colour panelBg = juce::Colour(0xff181d27);
+        juce::Colour headerBg = juce::Colour(0xff12151d);
+        juce::Colour accentCol = juce::Colour(0xff00e5ff);
+        juce::String titleBadge = "";
+        bool active = (type > 1);
+
+        if (sectionIndex == 0) { // PREAMP
+            if (type == 2) { // Telefunken V76 Tube
+                panelBg = juce::Colour(0xff343b42);
+                headerBg = juce::Colour(0xff272d33);
+                accentCol = juce::Colour(0xffff8c00);
+                titleBadge = "TELEFUNKEN V76 TUBE PREAMP";
+            } else if (type == 3) { // Neve 1073 Pre
+                panelBg = juce::Colour(0xff1d2630);
+                headerBg = juce::Colour(0xff141c24);
+                accentCol = juce::Colour(0xffe53935);
+                titleBadge = "NEVE 1073 CONSOLE PREAMP";
+            } else if (type == 4) { // Boutique Digital
+                panelBg = juce::Colour(0xff10151d);
+                headerBg = juce::Colour(0xff0a0e14);
+                accentCol = juce::Colour(0xff00e5ff);
+                titleBadge = "BOUTIQUE DIGITAL PREAMP";
+            } else titleBadge = "PREAMP & SATURATION (BYPASSED)";
+        } else if (sectionIndex == 1) { // COMPRESSOR
+            if (type == 2) { // UREI 1176 LN
+                panelBg = juce::Colour(0xff1c1f22);
+                headerBg = juce::Colour(0xff121417);
+                accentCol = juce::Colour(0xffffc107);
+                titleBadge = "UREI 1176 LN LIMITER";
+            } else if (type == 3) { // LA-2A
+                panelBg = juce::Colour(0xffb5bec6);
+                headerBg = juce::Colour(0xff8c96a0);
+                accentCol = juce::Colour(0xff2979ff);
+                titleBadge = "TELETRONIX LA-2A OPTICAL COMPRESSOR";
+            } else if (type == 4) { // Fairchild 670
+                panelBg = juce::Colour(0xff242629);
+                headerBg = juce::Colour(0xff18191c);
+                accentCol = juce::Colour(0xffffd700);
+                titleBadge = "FAIRCHILD 670 TUBE LIMITER";
+            } else if (type == 5) { // Modern VCA
+                panelBg = juce::Colour(0xff141820);
+                headerBg = juce::Colour(0xff0c1017);
+                accentCol = juce::Colour(0xffff9900);
+                titleBadge = "PRECISION VCA COMPRESSOR";
+            } else titleBadge = "DYNAMICS COMPRESSOR (BYPASSED)";
+        } else if (sectionIndex == 2) { // EQ
+            if (type == 2) { // Dirt Inductor EQ
+                panelBg = juce::Colour(0xff36281e);
+                headerBg = juce::Colour(0xff241912);
+                accentCol = juce::Colour(0xffd4a359);
+                titleBadge = "CUSTOM DIRT INDUCTOR EQ";
+            } else if (type == 3) { // Neve 1073 EQ
+                panelBg = juce::Colour(0xff1d2630);
+                headerBg = juce::Colour(0xff141c24);
+                accentCol = juce::Colour(0xff00e5ff);
+                titleBadge = "NEVE 1073 EQUALIZER";
+            } else if (type == 4) { // Pultec EQP-1A
+                panelBg = juce::Colour(0xff16424c);
+                headerBg = juce::Colour(0xff0e2c33);
+                accentCol = juce::Colour(0xff00e5ff);
+                titleBadge = "PULTEC EQP-1A PROGRAM EQ";
+            } else if (type == 5) { // Surgical Parametric EQ
+                panelBg = juce::Colour(0xff101620);
+                headerBg = juce::Colour(0xff0a0f17);
+                accentCol = juce::Colour(0xff00ff88);
+                titleBadge = "SURGICAL PARAMETRIC EQ";
+            } else titleBadge = "EQUALIZER (BYPASSED)";
+        } else if (sectionIndex == 3) { // OUTPUT COLOR
+            if (type == 2) { // Tape Saturation
+                panelBg = juce::Colour(0xff2a1d17);
+                headerBg = juce::Colour(0xff1a100a);
+                accentCol = juce::Colour(0xffff9900);
+                titleBadge = "ANALOG TAPE SATURATION";
+            } else if (type == 3) { // Tube Valve Drive
+                panelBg = juce::Colour(0xff341818);
+                headerBg = juce::Colour(0xff220c0c);
+                accentCol = juce::Colour(0xffff3d00);
+                titleBadge = "TUBE VALVE DRIVE";
+            } else if (type == 4) { // Console Warmth
+                panelBg = juce::Colour(0xff22272e);
+                headerBg = juce::Colour(0xff161a20);
+                accentCol = juce::Colour(0xffffc107);
+                titleBadge = "ANALOG CONSOLE WARMTH";
+            } else { // Clean Digital
+                panelBg = juce::Colour(0xff141923);
+                headerBg = juce::Colour(0xff0d111a);
+                accentCol = juce::Colour(0xffff00e5);
+                titleBadge = "TRANSPARENT DIGITAL OUTPUT";
+            }
+        }
+
+        // Card Glass Body
+        g.setColour(panelBg.withAlpha(0.92f));
         g.fillRoundedRectangle(cardBounds, 8.0f * currentScale);
 
-        // Hairline Glowing Border
-        g.setColour(active ? accentCol.withAlpha(0.5f) : juce::Colours::white.withAlpha(0.1f));
+        // Header Banner Box
+        auto bannerBounds = juce::Rectangle<float>(cardBounds.getX(), cardBounds.getY(), cardBounds.getWidth(), 38.0f * currentScale);
+        g.setColour(headerBg.withAlpha(0.95f));
+        g.fillRoundedRectangle(bannerBounds, 8.0f * currentScale);
+        g.fillRect(bannerBounds.withTrimmedTop(10.0f * currentScale)); // Flatten bottom corners
+
+        // Glowing Header Accent Line
+        g.setColour(active ? accentCol : juce::Colours::white.withAlpha(0.2f));
+        g.drawHorizontalLine((int)(bannerBounds.getBottom() - 1), bannerBounds.getX(), bannerBounds.getRight());
+
+        // Card Border
+        g.setColour(active ? accentCol.withAlpha(0.4f) : juce::Colours::white.withAlpha(0.1f));
         g.drawRoundedRectangle(cardBounds, 8.0f * currentScale, 1.0f);
 
-        // Glowing Power Status Indicator Dot
+        // Power Dot Indicator
         float dotX = cardBounds.getX() + 16.0f * currentScale;
-        float dotY = cardBounds.getY() + 18.0f * currentScale;
+        float dotY = bannerBounds.getCentreY();
         g.setColour(active ? accentCol : juce::Colour(0xff444444));
         g.fillEllipse(dotX - 4.0f, dotY - 4.0f, 8.0f * currentScale, 8.0f * currentScale);
 
         if (active) {
-            g.setColour(accentCol.withAlpha(0.3f));
+            g.setColour(accentCol.withAlpha(0.35f));
             g.fillEllipse(dotX - 7.0f, dotY - 7.0f, 14.0f * currentScale, 14.0f * currentScale);
         }
 
-        // Section Title Badge
-        g.setColour(active ? juce::Colours::white : juce::Colours::white.withAlpha(0.4f));
+        // Section Title Text
+        bool isLA2A = (sectionIndex == 1 && type == 3);
+        g.setColour((active && !isLA2A) ? juce::Colours::white : juce::Colours::white.withAlpha(0.7f));
         g.setFont(juce::Font(12.0f * currentScale, juce::Font::bold));
-        g.drawText(title, (int)(dotX + 12.0f * currentScale), (int)(cardBounds.getY() + 8.0f * currentScale), 300, 20, juce::Justification::left);
+        g.drawText(titleBadge, (int)(dotX + 12.0f * currentScale), (int)(bannerBounds.getY()), (int)(240 * currentScale), (int)bannerBounds.getHeight(), juce::Justification::centredLeft);
+
+        // Render Animated Tube Graphic for Tube Models
+        if (sectionIndex == 0 && type == 2) { // Telefunken V76 Tube
+            auto tubeBounds = juce::Rectangle<float>(cardBounds.getRight() - 130.0f * currentScale, cardBounds.getY() + 45.0f * currentScale, 50.0f * currentScale, 90.0f * currentScale);
+            drawVacuumTube(g, tubeBounds, 0.85f);
+        } else if (sectionIndex == 3 && type == 3) { // Output Tube Valve Drive
+            auto tubeBounds = juce::Rectangle<float>(cardBounds.getRight() - 130.0f * currentScale, cardBounds.getY() + 45.0f * currentScale, 50.0f * currentScale, 90.0f * currentScale);
+            drawVacuumTube(g, tubeBounds, 0.95f);
+        }
+
+        // Render Animated Tape Reels Graphic for Tape Model
+        if (sectionIndex == 3 && type == 2) { // Output Tape Saturation
+            auto reelBounds = juce::Rectangle<float>(cardBounds.getRight() - 210.0f * currentScale, cardBounds.getY() + 40.0f * currentScale, 130.0f * currentScale, 100.0f * currentScale);
+            drawTapeReels(g, reelBounds, tapeReelAngle);
+        }
     };
 
-    drawLogicCard(preY, preH, "PREAMP & TAPE SATURATION", juce::Colour(0xff00e5ff), preType > 1);
-    drawLogicCard(compY, compH, "PRECISION DYNAMICS COMPRESSOR", juce::Colour(0xffffa200), compType > 1);
-    drawLogicCard(eqY, eqH, "PARAMETRIC & PULTEC EQUALIZER", juce::Colour(0xff00ff88), eqType > 1);
-    if (outType > 1) drawLogicCard(outY, outH, "ANALOG OUTPUT COLOR", juce::Colour(0xffff00e5), true);
+    drawHardwareCard(0, preY, preH, preType);
+    drawHardwareCard(1, compY, compH, compType);
+    drawHardwareCard(2, eqY, eqH, eqType);
+    if (outType > 1) drawHardwareCard(3, outY, outH, outType);
 
     // 4. Logic Pro Neon LED Level Meters
     auto drawMeter = [&](int sectionIndex, float meterValue, juce::Colour color, bool isGR = false) {
@@ -653,18 +890,19 @@ void AnalogFxAudioProcessorEditor::resized()
     int presetH = (int)(28 * currentScale);
     presetSelector.setBounds((w - presetW) / 2, (taskBarH - presetH) / 2, presetW, presetH);
 
-    preampSelector.setBounds(margin, preY + (int)(20 * currentScale), selectorW, selectorH);
-    compSelector.setBounds(margin, compY + (int)(20 * currentScale), selectorW, selectorH);
-    eqSelector.setBounds(margin, eqY + (int)(20 * currentScale), selectorW, selectorH);
-    outputSelector.setBounds(margin, outY + (int)(20 * currentScale), selectorW, selectorH);
+    // Embed Module Selectors cleanly inside Section Header Banners
+    preampSelector.setBounds((int)(280 * currentScale), preY + (int)(11 * currentScale), selectorW, selectorH);
+    compSelector.setBounds((int)(310 * currentScale), compY + (int)(11 * currentScale), selectorW, selectorH);
+    eqSelector.setBounds((int)(280 * currentScale), eqY + (int)(11 * currentScale), selectorW, selectorH);
+    outputSelector.setBounds((int)(240 * currentScale), outY + (int)(11 * currentScale), selectorW, selectorH);
     
-    scaleSelector.setBounds(w - selectorW - margin, preY + (int)(20 * currentScale), selectorW, selectorH);
+    scaleSelector.setBounds(w - selectorW - margin, preY + (int)(11 * currentScale), selectorW, selectorH);
     
     // Oversampling Button (Top section, away from meter)
     int osW = (int)(140 * currentScale);
     int osH = (int)(45 * currentScale);
     int osX = w - osW - (int)(150 * currentScale); 
-    int osY = preY + (int)(20 * currentScale) + selectorH + margin;
+    int osY = preY + (int)(60 * currentScale);
     oversamplingButton.setBounds(osX, osY, osW, osH);
     oversamplingLabel.setBounds(osX, osY + osH, osW, (int)(15 * currentScale));
 
@@ -672,20 +910,20 @@ void AnalogFxAudioProcessorEditor::resized()
     int safeW = (int)(120 * currentScale);
     int safeH = (int)(40 * currentScale);
     int safeX = w - safeW - (int)(150 * currentScale);
-    int safeY = outY + (int)(20 * currentScale) + selectorH + margin;
+    int safeY = outY + (int)(60 * currentScale);
     for (auto& b : outputButtons) {
         b->setBounds(safeX, safeY, safeW, safeH);
     }
 
     auto getKnobSize = [&](int section, const juce::String& id) {
-        if (section == 0) return (int)(130 * currentScale); // Preamp
+        if (section == 0) return (int)(120 * currentScale); // Preamp
         if (section == 2) { // EQ
             if (id.containsIgnoreCase("freq") || id.containsIgnoreCase("q") || id.endsWithIgnoreCase("hz")) 
-                return (int)(60 * currentScale); // Smaller for EQ
-            return (int)(85 * currentScale); 
+                return (int)(55 * currentScale); // Smaller for EQ
+            return (int)(75 * currentScale); 
         }
-        if (section == 3) return (int)(130 * currentScale); // Output
-        return (int)(80 * currentScale); 
+        if (section == 3) return (int)(120 * currentScale); // Output
+        return (int)(75 * currentScale); 
     };
 
     auto layoutSection = [&](std::vector<std::unique_ptr<juce::Slider>>& sliders, std::vector<std::unique_ptr<juce::Label>>& labels, int startY, int sectionIdx) {
@@ -698,7 +936,7 @@ void AnalogFxAudioProcessorEditor::resized()
         struct Row { std::vector<int> idxs; int width = 0; int maxH = 0; };
         std::vector<Row> rows;
         Row cur;
-        int maxW = w - (int)(100 * currentScale); // Space for meter
+        int maxW = w - (int)(120 * currentScale); // Space for meter & side graphics
         int spacingX = (int)(20 * currentScale);
 
         for (int i : vis) {
@@ -713,17 +951,17 @@ void AnalogFxAudioProcessorEditor::resized()
         }
         if (!cur.idxs.empty()) rows.push_back(cur);
 
-        int curY = startY + (int)(60 * currentScale);
+        int curY = startY + (int)(65 * currentScale);
         for (auto& row : rows) {
             int x = (w - row.width) / 2;
             for (int i : row.idxs) {
                 int sz = getKnobSize(sectionIdx, sliders[i]->getComponentID());
                 int yOff = (row.maxH - sz) / 2;
                 sliders[i]->setBounds(x, curY + yOff, sz, sz);
-                labels[i]->setBounds(x - (int)(10 * currentScale), curY + yOff - (int)(20 * currentScale), sz + (int)(20 * currentScale), (int)(20 * currentScale));
+                labels[i]->setBounds(x - (int)(10 * currentScale), curY + yOff + sz + (int)(4 * currentScale), sz + (int)(20 * currentScale), (int)(18 * currentScale));
                 x += sz + spacingX;
             }
-            curY += row.maxH + (int)(40 * currentScale);
+            curY += row.maxH + (int)(45 * currentScale);
         }
     };
 
