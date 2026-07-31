@@ -3,90 +3,119 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class ImageKnobLookAndFeel : public juce::LookAndFeel_V4
+class LogicProKnobLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    ImageKnobLookAndFeel(const char* baseData, int baseSize, const char* highlightData, int highlightSize)
+    LogicProKnobLookAndFeel(juce::Colour accent = juce::Colour(0xff00e5ff))
+        : accentColor(accent)
     {
-        knobImage = juce::ImageCache::getFromMemory(baseData, baseSize);
-        if (highlightData != nullptr)
-            highlightImage = juce::ImageCache::getFromMemory(highlightData, highlightSize);
     }
+
+    void setAccentColour(juce::Colour newColour) { accentColor = newColour; }
 
     void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
                           float sliderPos, const float rotaryStartAngle, const float rotaryEndAngle,
                           juce::Slider& slider) override
     {
-        juce::ignoreUnused(slider);
-        if (!knobImage.isValid()) return;
+        auto bounds = juce::Rectangle<float>((float)x, (float)y, (float)width, (float)height).reduced(3.0f);
+        auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * 0.5f;
+        auto centreX = bounds.getCentreX();
+        auto centreY = bounds.getCentreY();
+        auto angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-        const double rotation = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
-        const float radius = juce::jmin(width / 2.0f, height / 2.0f) * 0.94f;
-        const float rx = x + width * 0.5f - radius;
-        const float ry = y + height * 0.5f - radius;
-        const float renderSize = radius * 2.0f;
-        
-        if (renderSize <= 0) return;
+        // 1. Soft Drop Shadow
+        g.setColour(juce::Colours::black.withAlpha(0.5f));
+        g.fillEllipse(centreX - radius + 2.0f, centreY - radius + 3.0f, radius * 2.0f, radius * 2.0f);
 
-        g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+        // 2. Track Background Arc (Dark Metallic Ring)
+        float arcRadius = radius - 5.0f;
+        juce::Path trackPath;
+        trackPath.addCentredArc(centreX, centreY, arcRadius, arcRadius, 0.0f, rotaryStartAngle, rotaryEndAngle, true);
+        g.setColour(juce::Colour(0xff1f242d));
+        g.strokePath(trackPath, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-        // Draw Soft Shadow SMALLER than the knob to prevent darkening the face
+        // 3. Animated Active Parameter Arc (Neon Glow Accent)
+        if (sliderPos > 0.001f)
         {
-            const float shadowOffset = renderSize * 0.08f;
-            const float shadowSize = renderSize * 0.85f;
-            const float sx = rx + (renderSize - shadowSize) * 0.5f + shadowOffset * 0.3f;
-            const float sy = ry + (renderSize - shadowSize) * 0.5f + shadowOffset * 0.6f;
+            juce::Path valuePath;
+            valuePath.addCentredArc(centreX, centreY, arcRadius, arcRadius, 0.0f, rotaryStartAngle, angle, true);
             
-            juce::ColourGradient grad(juce::Colours::black.withAlpha(0.6f), sx + shadowSize * 0.5f, sy + shadowSize * 0.5f,
-                                      juce::Colours::transparentBlack, sx + shadowSize * 1.1f, sy + shadowSize * 1.1f, true);
-            g.setGradientFill(grad);
-            g.fillEllipse(sx - shadowSize * 0.1f, sy - shadowSize * 0.1f, shadowSize * 1.2f, shadowSize * 1.2f);
+            // Outer Glow
+            g.setColour(accentColor.withAlpha(0.3f));
+            g.strokePath(valuePath, juce::PathStrokeType(7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            
+            // Core Neon Arc
+            g.setColour(accentColor);
+            g.strokePath(valuePath, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         }
-        
-        juce::AffineTransform transform;
-        transform = transform.rotated((float)rotation, knobImage.getWidth() * 0.5f, knobImage.getHeight() * 0.5f);
-        transform = transform.scaled(renderSize / knobImage.getWidth(), renderSize / knobImage.getHeight());
-        transform = transform.translated(rx, ry);
-        
-        g.drawImageTransformed(knobImage, transform, false);
 
-        if (highlightImage.isValid())
+        // 4. Center Knob Cap (Dark Anodized Aluminum)
+        float capRadius = radius - 11.0f;
+        if (capRadius > 4.0f)
         {
-            // Reduced opacity to 0.12f to keep the colors vibrant and avoid "graying out"
-            g.setOpacity(0.12f);
-            g.drawImage(highlightImage, rx, ry, renderSize, renderSize, 0, 0, highlightImage.getWidth(), highlightImage.getHeight(), false);
-            g.setOpacity(1.0f);
+            juce::ColourGradient capGrad(juce::Colour(0xff2c323d), centreX, centreY - capRadius,
+                                       juce::Colour(0xff14181f), centreX, centreY + capRadius, false);
+            g.setGradientFill(capGrad);
+            g.fillEllipse(centreX - capRadius, centreY - capRadius, capRadius * 2.0f, capRadius * 2.0f);
+
+            // Bevel Ring
+            g.setColour(juce::Colours::white.withAlpha(0.15f));
+            g.drawEllipse(centreX - capRadius, centreY - capRadius, capRadius * 2.0f, capRadius * 2.0f, 1.0f);
+
+            // Inner Cap Indent
+            float innerCap = capRadius * 0.75f;
+            juce::ColourGradient innerGrad(juce::Colour(0xff12151b), centreX, centreY - innerCap,
+                                         juce::Colour(0xff20252f), centreX, centreY + innerCap, false);
+            g.setGradientFill(innerGrad);
+            g.fillEllipse(centreX - innerCap, centreY - innerCap, innerCap * 2.0f, innerCap * 2.0f);
+
+            // 5. White/Neon Pointer Line
+            juce::Path pointer;
+            float pointerLength = capRadius * 0.85f;
+            pointer.addRectangle(-1.5f, -pointerLength, 3.0f, pointerLength * 0.5f);
+            pointer.applyTransform(juce::AffineTransform::rotation(angle).translated(centreX, centreY));
+            
+            g.setColour(slider.isMouseOverOrDragging() ? accentColor : juce::Colours::white);
+            g.fillPath(pointer);
         }
     }
 
 private:
-    juce::Image knobImage;
-    juce::Image highlightImage;
+    juce::Colour accentColor;
 };
 
-class SwitchLookAndFeel : public juce::LookAndFeel_V4
+class LogicProSwitchLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    SwitchLookAndFeel()
-    {
-        onImage = juce::ImageCache::getFromMemory(BinaryData::switch_on_png, BinaryData::switch_on_pngSize);
-        offImage = juce::ImageCache::getFromMemory(BinaryData::switch_off_png, BinaryData::switch_off_pngSize);
-    }
-
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
                           bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
     {
         juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
-        if (onImage.isValid() && offImage.isValid())
-        {
-            auto bounds = button.getLocalBounds().toFloat();
-            auto& img = button.getToggleState() ? onImage : offImage;
-            g.drawImage(img, bounds, juce::RectanglePlacement::centred);
-        }
-    }
+        auto bounds = button.getLocalBounds().toFloat().reduced(2.0f);
+        bool isOn = button.getToggleState();
 
-private:
-    juce::Image onImage, offImage;
+        // Background Track (Pill Shape)
+        auto trackColor = isOn ? juce::Colour(0xff00d2ff).withAlpha(0.25f) : juce::Colour(0xff1a1e26);
+        g.setColour(trackColor);
+        g.fillRoundedRectangle(bounds, bounds.getHeight() * 0.5f);
+
+        g.setColour(isOn ? juce::Colour(0xff00d2ff).withAlpha(0.6f) : juce::Colours::white.withAlpha(0.2f));
+        g.drawRoundedRectangle(bounds, bounds.getHeight() * 0.5f, 1.0f);
+
+        // Sliding Metallic Thumb Knob
+        float thumbW = bounds.getHeight() - 4.0f;
+        float thumbX = isOn ? (bounds.getRight() - thumbW - 2.0f) : (bounds.getX() + 2.0f);
+        auto thumbRect = juce::Rectangle<float>(thumbX, bounds.getY() + 2.0f, thumbW, thumbW);
+
+        juce::ColourGradient thumbGrad(juce::Colour(0xff454e5b), thumbRect.getCentreX(), thumbRect.getY(),
+                                      juce::Colour(0xff222730), thumbRect.getCentreX(), thumbRect.getBottom(), false);
+        g.setGradientFill(thumbGrad);
+        g.fillEllipse(thumbRect);
+
+        // Center Status Dot
+        g.setColour(isOn ? juce::Colour(0xff00e5ff) : juce::Colour(0xff666666));
+        g.fillEllipse(thumbRect.reduced(thumbW * 0.3f));
+    }
 };
 
 class ModernButtonLookAndFeel : public juce::LookAndFeel_V4
@@ -96,27 +125,27 @@ public:
                           bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
     {
         auto bounds = button.getLocalBounds().toFloat().reduced(2);
-        auto baseColor = juce::Colour(0xff222222);
-        auto accentColor = juce::Colours::cyan;
+        auto baseColor = juce::Colour(0xff1a1f29);
+        auto accentColor = juce::Colour(0xff00e5ff);
         
         if (button.getToggleState()) {
-            g.setColour(accentColor.withAlpha(0.6f));
-            g.fillRoundedRectangle(bounds, 4.0f);
+            g.setColour(accentColor.withAlpha(0.5f));
+            g.fillRoundedRectangle(bounds, 6.0f);
         } else {
             g.setColour(baseColor);
-            g.fillRoundedRectangle(bounds, 4.0f);
+            g.fillRoundedRectangle(bounds, 6.0f);
         }
         
-        g.setColour(juce::Colours::white.withAlpha(0.4f));
-        g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
+        g.setColour(juce::Colours::white.withAlpha(0.3f));
+        g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
         
         g.setColour(juce::Colours::white);
-        g.setFont(11.0f);
+        g.setFont(juce::Font(11.0f, juce::Font::bold));
         g.drawText(button.getButtonText(), bounds, juce::Justification::centred);
         
         if (shouldDrawButtonAsHighlighted) {
             g.setColour(juce::Colours::white.withAlpha(0.1f));
-            g.fillRoundedRectangle(bounds, 4.0f);
+            g.fillRoundedRectangle(bounds, 6.0f);
         }
     }
 };
@@ -145,19 +174,12 @@ public:
 private:
     AnalogFxAudioProcessor& audioProcessor;
     
-    ImageKnobLookAndFeel telefunkenLaf {BinaryData::pmod_pre_knob_png, BinaryData::pmod_pre_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel neveLaf {BinaryData::neve_knob_png, BinaryData::neve_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel modPreLaf {BinaryData::modern_pre_knob_png, BinaryData::modern_pre_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel nc76Laf {BinaryData::nc76_knob_png, BinaryData::nc76_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel la2aLaf {BinaryData::la2a_knob_png, BinaryData::la2a_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel fairchildLaf {BinaryData::fairchild_knob_png, BinaryData::fairchild_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel modCompLaf {BinaryData::modern_comp_knob_png, BinaryData::modern_comp_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel dirtEqLaf {BinaryData::dirt_eq_knob_png, BinaryData::dirt_eq_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel pultecLaf {BinaryData::pultec_knob_png, BinaryData::pultec_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel modEqLaf {BinaryData::modern_eq_knob_png, BinaryData::modern_eq_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
-    ImageKnobLookAndFeel outputLaf {BinaryData::output_knob_png, BinaryData::output_knob_pngSize, BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize};
+    LogicProKnobLookAndFeel preLaf {juce::Colour(0xff00e5ff)};       // Preamp (Cyan)
+    LogicProKnobLookAndFeel compLaf {juce::Colour(0xffffa200)};      // Compressor (Amber/Gold)
+    LogicProKnobLookAndFeel eqLaf {juce::Colour(0xff00ff88)};        // EQ (Emerald Green)
+    LogicProKnobLookAndFeel outputLaf {juce::Colour(0xffff00e5)};    // Output (Magenta)
 
-    SwitchLookAndFeel switchLaf;
+    LogicProSwitchLookAndFeel switchLaf;
     ModernButtonLookAndFeel modernButtonLaf;
     
     float preMeterVal = 0.0f;
