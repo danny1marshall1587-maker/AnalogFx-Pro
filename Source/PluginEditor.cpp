@@ -583,7 +583,7 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
     }
 
     // Output Visibility
-    int outType = outputSelector.getSelectedId();
+    outType = outputSelector.getSelectedId();
     for (auto& s : outputSliders) s->setVisible(false);
     for (auto& l : outputLabels) l->setVisible(false);
     if (outType > 1) {
@@ -652,7 +652,7 @@ void AnalogFxAudioProcessorEditor::paint(juce::Graphics& g)
     
     g.setColour(juce::Colour(0xff00e5ff));
     g.setFont(juce::Font(10.0f * currentScale, juce::Font::plain));
-    g.drawText("LOGIC PRO EDITION v2.2.0", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
+    g.drawText("LOGIC PRO EDITION v2.2.1", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
 
     // 3. Logic Pro Hardware Section Cards & Banners with Model-Specific Color Themes
     auto drawHardwareCard = [&](int sectionIndex, int y, int cardH, int type) {
