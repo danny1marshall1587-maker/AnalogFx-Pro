@@ -160,6 +160,94 @@ public:
     void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override;
 };
 
+class ModelStepperComponent : public juce::Component
+{
+public:
+    ModelStepperComponent()
+    {
+        leftBtn.setButtonText("<");
+        rightBtn.setButtonText(">");
+        
+        leftBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff1f242d));
+        leftBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        rightBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff1f242d));
+        rightBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+
+        nameBox.setJustificationType(juce::Justification::centred);
+        nameBox.setColour(juce::Label::textColourId, juce::Colours::white);
+        nameBox.setFont(juce::Font(11.0f, juce::Font::bold));
+
+        addAndMakeVisible(leftBtn);
+        addAndMakeVisible(nameBox);
+        addAndMakeVisible(rightBtn);
+
+        leftBtn.onClick = [this] {
+            if (options.isEmpty()) return;
+            currentIndex = (currentIndex - 1 + options.size()) % options.size();
+            updateLabel();
+            if (onSelectionChanged) onSelectionChanged(currentIndex + 1);
+        };
+
+        rightBtn.onClick = [this] {
+            if (options.isEmpty()) return;
+            currentIndex = (currentIndex + 1) % options.size();
+            updateLabel();
+            if (onSelectionChanged) onSelectionChanged(currentIndex + 1);
+        };
+    }
+
+    void setOptions(const juce::StringArray& newOptions)
+    {
+        options = newOptions;
+        updateLabel();
+    }
+
+    void setSelectedId(int id, juce::NotificationType notification = juce::sendNotification)
+    {
+        int index = id - 1;
+        if (index >= 0 && index < options.size()) {
+            currentIndex = index;
+            updateLabel();
+            if (notification == juce::sendNotification && onSelectionChanged)
+                onSelectionChanged(id);
+        }
+    }
+
+    int getSelectedId() const { return currentIndex + 1; }
+
+    std::function<void(int)> onSelectionChanged;
+
+    void resized() override
+    {
+        auto bounds = getLocalBounds();
+        int btnW = 20;
+        leftBtn.setBounds(bounds.removeFromLeft(btnW));
+        rightBtn.setBounds(bounds.removeFromRight(btnW));
+        nameBox.setBounds(bounds);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour(juce::Colour(0xff12161f));
+        g.fillRoundedRectangle(bounds, 4.0f);
+        g.setColour(juce::Colours::white.withAlpha(0.2f));
+        g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
+    }
+
+private:
+    juce::TextButton leftBtn, rightBtn;
+    juce::Label nameBox;
+    juce::StringArray options;
+    int currentIndex = 0;
+
+    void updateLabel()
+    {
+        if (currentIndex >= 0 && currentIndex < options.size())
+            nameBox.setText(options[currentIndex], juce::dontSendNotification);
+    }
+};
+
 class AnalogFxAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::ComboBox::Listener, private juce::Timer
 {
 public:
@@ -203,12 +291,11 @@ private:
     void loadUserPresets();
     void saveUserPreset();
 
-    // Module Selectors
-    juce::ComboBox preampSelector;
-    juce::ComboBox compSelector;
-    juce::ComboBox eqSelector;
-    juce::ComboBox outputSelector;
-    juce::ComboBox scaleSelector;
+    // Module Stepper Selectors
+    ModelStepperComponent preampStepper;
+    ModelStepperComponent compStepper;
+    ModelStepperComponent eqStepper;
+    ModelStepperComponent outputStepper;
     
     juce::ToggleButton oversamplingButton;
     juce::Label oversamplingLabel;
@@ -217,7 +304,6 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> compSelectorAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> eqSelectorAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> outputSelectorAtt;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> scaleSelectorAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> oversamplingAtt;
 
     float currentScale = 1.0f;
@@ -241,9 +327,6 @@ private:
 
     std::vector<std::unique_ptr<juce::ToggleButton>> eqButtons;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> eqButtonAtts;
-
-    std::vector<std::unique_ptr<juce::ToggleButton>> outputButtons;
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> outputButtonAtts;
 
     void buildKnob(const juce::String& paramId, const juce::String& name, int section); // 0=Pre, 1=Comp, 2=EQ, 3=Output
     void buildButton(const juce::String& paramId, const juce::String& name, int section);
