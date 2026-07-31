@@ -102,7 +102,7 @@ AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcesso
     preampStepper.setOptions({"Bypass", "Telefunken V76", "Neve 1073", "Boutique Digital"});
     preampStepper.onSelectionChanged = [this](int id) {
         if (auto* param = audioProcessor.apvts.getParameter("preamp_type"))
-            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+            param->setValueNotifyingHost((float)(id - 1) / 3.0f);
         updateVisibility();
     };
 
@@ -110,7 +110,7 @@ AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcesso
     compStepper.setOptions({"Bypass", "UREI 1176 LN", "Teletronix LA-2A", "Fairchild 670", "Precision VCA"});
     compStepper.onSelectionChanged = [this](int id) {
         if (auto* param = audioProcessor.apvts.getParameter("comp_type"))
-            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+            param->setValueNotifyingHost((float)(id - 1) / 4.0f);
         updateVisibility();
     };
 
@@ -118,7 +118,7 @@ AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcesso
     eqStepper.setOptions({"Bypass", "Custom Dirt EQ", "Neve 1073 EQ", "Pultec EQP-1A", "Modern Parametric"});
     eqStepper.onSelectionChanged = [this](int id) {
         if (auto* param = audioProcessor.apvts.getParameter("eq_type"))
-            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+            param->setValueNotifyingHost((float)(id - 1) / 4.0f);
         updateVisibility();
     };
 
@@ -126,7 +126,7 @@ AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcesso
     outputStepper.setOptions({"Bypass", "Tape Saturation", "Tube Valve Drive", "Console Warmth", "Clean Digital"});
     outputStepper.onSelectionChanged = [this](int id) {
         if (auto* param = audioProcessor.apvts.getParameter("output_type"))
-            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+            param->setValueNotifyingHost((float)(id - 1) / 4.0f);
         updateVisibility();
     };
 
@@ -423,9 +423,6 @@ void AnalogFxAudioProcessorEditor::buildButton(const juce::String& paramId, cons
     if (section == 2) {
         eqButtonAtts.push_back(std::move(att));
         eqButtons.push_back(std::move(btn));
-    } else if (section == 3) {
-        outputButtonAtts.push_back(std::move(att));
-        outputButtons.push_back(std::move(btn));
     }
 }
 
@@ -584,16 +581,7 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
         }
     }
 
-    // Now that visibility is set, handle layout and possible resize
-    if (getWidth() != targetW || getHeight() != targetH)
-    {
-        setSize(targetW, targetH);
-    }
-    else
-    {
-        resized();
-    }
-    
+    resized();
     repaint();
     openGLContext.triggerRepaint();
 }
@@ -613,10 +601,10 @@ void AnalogFxAudioProcessorEditor::paint(juce::Graphics& g)
     for (int yLine = 0; yLine < h; yLine += 4)
         g.drawHorizontalLine(yLine, 0.0f, (float)w);
 
-    int preType = preampSelector.getSelectedId();
-    int compType = compSelector.getSelectedId();
-    int eqType = eqSelector.getSelectedId();
-    int outType = outputSelector.getSelectedId();
+    int preType = preampStepper.getSelectedId();
+    int compType = compStepper.getSelectedId();
+    int eqType = eqStepper.getSelectedId();
+    int outType = outputStepper.getSelectedId();
 
     int taskBarH = (int)(50 * currentScale);
     int preH = (int)(300 * currentScale);
@@ -642,7 +630,7 @@ void AnalogFxAudioProcessorEditor::paint(juce::Graphics& g)
     
     g.setColour(juce::Colour(0xff00e5ff));
     g.setFont(juce::Font(10.0f * currentScale, juce::Font::plain));
-    g.drawText("LOGIC PRO EDITION v2.3.0", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
+    g.drawText("LOGIC PRO EDITION v2.3.1", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
 
     // 3. Logic Pro Hardware Section Cards & Banners with Model-Specific Color Themes
     auto drawHardwareCard = [&](int sectionIndex, int y, int cardH, int type) {
