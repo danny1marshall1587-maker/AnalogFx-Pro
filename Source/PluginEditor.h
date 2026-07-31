@@ -249,6 +249,11 @@ private:
     void buildButton(const juce::String& paramId, const juce::String& name, int section);
     void updateVisibility();
 
+    float tapeReelAngle = 0.0f;
+    float tubeGlowPhase = 0.0f;
+    void drawVacuumTube(juce::Graphics& g, juce::Rectangle<float> bounds, float glowAmount);
+    void drawTapeReels(juce::Graphics& g, juce::Rectangle<float> bounds, float rotationAngle);
+
     juce::OpenGLContext openGLContext;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AnalogFxAudioProcessorEditor)
