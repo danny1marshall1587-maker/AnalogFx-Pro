@@ -72,6 +72,8 @@ void GlassmorphismComboBoxLookAndFeel::drawPopupMenuItem(juce::Graphics& g, cons
 AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
+    setResizable(true, true);
+    setResizeLimits(600, 700, 1600, 2200);
 
     bgTelefunken = juce::ImageCache::getFromMemory(BinaryData::telefunken_bg_png, BinaryData::telefunken_bg_pngSize);
     bgNevePre = juce::ImageCache::getFromMemory(BinaryData::neve_bg_png, BinaryData::neve_bg_pngSize);
@@ -96,30 +98,37 @@ AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcesso
     presetSelector.addListener(this);
     loadUserPresets();
 
-    addAndMakeVisible(preampSelector);
-    preampSelector.addItemList({"Bypass", "Telefunken", "Neve", "Modern"}, 1);
-    preampSelectorAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "preamp_type", preampSelector);
-    preampSelector.addListener(this);
+    addAndMakeVisible(preampStepper);
+    preampStepper.setOptions({"Bypass", "Telefunken V76", "Neve 1073", "Boutique Digital"});
+    preampStepper.onSelectionChanged = [this](int id) {
+        if (auto* param = audioProcessor.apvts.getParameter("preamp_type"))
+            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+        updateVisibility();
+    };
 
-    addAndMakeVisible(compSelector);
-    compSelector.addItemList({"Bypass", "NC76", "LA-2A", "Fairchild", "Modern VCA"}, 1);
-    compSelectorAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "comp_type", compSelector);
-    compSelector.addListener(this);
+    addAndMakeVisible(compStepper);
+    compStepper.setOptions({"Bypass", "UREI 1176 LN", "Teletronix LA-2A", "Fairchild 670", "Precision VCA"});
+    compStepper.onSelectionChanged = [this](int id) {
+        if (auto* param = audioProcessor.apvts.getParameter("comp_type"))
+            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+        updateVisibility();
+    };
 
-    addAndMakeVisible(eqSelector);
-    eqSelector.addItemList({"Bypass", "Dirt EQ", "Neve 1073", "Pultec EQP-1A", "Modern Surgical"}, 1);
-    eqSelectorAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "eq_type", eqSelector);
-    eqSelector.addListener(this);
+    addAndMakeVisible(eqStepper);
+    eqStepper.setOptions({"Bypass", "Custom Dirt EQ", "Neve 1073 EQ", "Pultec EQP-1A", "Modern Parametric"});
+    eqStepper.onSelectionChanged = [this](int id) {
+        if (auto* param = audioProcessor.apvts.getParameter("eq_type"))
+            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+        updateVisibility();
+    };
 
-    addAndMakeVisible(scaleSelector);
-    scaleSelector.addItemList({"Scale: 50%", "Scale: 75%", "Scale: 100%", "Scale: 150%", "Scale: 200%"}, 1);
-    scaleSelector.setSelectedItemIndex(2, juce::dontSendNotification);
-    scaleSelector.addListener(this);
-
-    addAndMakeVisible(outputSelector);
-    outputSelector.addItemList({"Bypass", "Vintage Tape", "British Iron", "Valve Summing", "Modern Polish"}, 1);
-    outputSelectorAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "output_type", outputSelector);
-    outputSelector.addListener(this);
+    addAndMakeVisible(outputStepper);
+    outputStepper.setOptions({"Bypass", "Tape Saturation", "Tube Valve Drive", "Console Warmth", "Clean Digital"});
+    outputStepper.onSelectionChanged = [this](int id) {
+        if (auto* param = audioProcessor.apvts.getParameter("output_type"))
+            param->setValueNotifyingHost(param->getNormalisedValueForUserValue((float)id));
+        updateVisibility();
+    };
 
     addAndMakeVisible(oversamplingButton);
     oversamplingButton.setLookAndFeel(&switchLaf);
@@ -216,7 +225,6 @@ AnalogFxAudioProcessorEditor::AnalogFxAudioProcessorEditor(AnalogFxAudioProcesso
 
     // Build Output Knobs (3)
     buildKnob("output_drive", "Drive", 3);
-    buildButton("output_safe", "SAFE", 3);
 
     // Missing Dirt EQ Knobs
     buildKnob("lowpass_freq", "LP Hz", 2);
@@ -457,31 +465,16 @@ void AnalogFxAudioProcessorEditor::comboBoxChanged(juce::ComboBox* cb)
         }
         return;
     }
-
-    if (cb == &scaleSelector)
-    {
-        int idx = scaleSelector.getSelectedItemIndex();
-        if (idx == 0) currentScale = 0.5f;
-        else if (idx == 1) currentScale = 0.75f;
-        else if (idx == 2) currentScale = 1.0f;
-        else if (idx == 3) currentScale = 1.5f;
-        else if (idx == 4) currentScale = 2.0f;
-    }
     
     updateVisibility();
 }
 
 void AnalogFxAudioProcessorEditor::updateVisibility()
 {
-    int preType = preampSelector.getSelectedId();
-    int compType = compSelector.getSelectedId();
-    int eqType = eqSelector.getSelectedId();
-
-    int baseW = 800;
-    int baseH = (eqType == 2) ? 1550 : 1250;
-
-    int targetW = (int)(baseW * currentScale);
-    int targetH = (int)(baseH * currentScale);
+    int preType = preampStepper.getSelectedId();
+    int compType = compStepper.getSelectedId();
+    int eqType = eqStepper.getSelectedId();
+    int outType = outputStepper.getSelectedId();
 
     for (auto& s : preSliders) s->setVisible(false);
     for (auto& l : preLabels) l->setVisible(false);
@@ -523,7 +516,6 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
     else eqLaf.setAccentColour(juce::Colour(0xff00ff88));                      // Surgical (Emerald)
 
     // Update Output Stage Knob Accent Color based on Model
-    int outType = outputSelector.getSelectedId();
     if (outType == 2) outputLaf.setAccentColour(juce::Colour(0xffff9900));     // Tape Saturation (Mahogany Amber)
     else if (outType == 3) outputLaf.setAccentColour(juce::Colour(0xffff3d00));// Tube Valve (Crimson Red)
     else if (outType == 4) outputLaf.setAccentColour(juce::Colour(0xffffc107));// Console (Brass Gold)
@@ -583,7 +575,6 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
     }
 
     // Output Visibility
-    outType = outputSelector.getSelectedId();
     for (auto& s : outputSliders) s->setVisible(false);
     for (auto& l : outputLabels) l->setVisible(false);
     if (outType > 1) {
@@ -591,7 +582,6 @@ void AnalogFxAudioProcessorEditor::updateVisibility()
             outputSliders[i]->setVisible(true);
             outputLabels[i]->setVisible(true);
         }
-        for (auto& b : outputButtons) b->setVisible(true);
     }
 
     // Now that visibility is set, handle layout and possible resize
@@ -652,7 +642,7 @@ void AnalogFxAudioProcessorEditor::paint(juce::Graphics& g)
     
     g.setColour(juce::Colour(0xff00e5ff));
     g.setFont(juce::Font(10.0f * currentScale, juce::Font::plain));
-    g.drawText("LOGIC PRO EDITION v2.2.1", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
+    g.drawText("LOGIC PRO EDITION v2.3.0", (int)(155 * currentScale), (int)(2 * currentScale), (int)(160 * currentScale), taskBarH, juce::Justification::centredLeft);
 
     // 3. Logic Pro Hardware Section Cards & Banners with Model-Specific Color Themes
     auto drawHardwareCard = [&](int sectionIndex, int y, int cardH, int type) {
@@ -852,15 +842,17 @@ void AnalogFxAudioProcessorEditor::paint(juce::Graphics& g)
 void AnalogFxAudioProcessorEditor::resized()
 {
     int w = getWidth();
+    currentScale = w / 800.0f;
+
     int margin = (int)(20 * currentScale);
-    auto selectorW = (int)(150 * currentScale);
-    auto selectorH = (int)(24 * currentScale);
+    auto selectorW = (int)(160 * currentScale);
+    auto selectorH = (int)(26 * currentScale);
 
     // Variable Section Heights
     int taskBarH = (int)(50 * currentScale);
     int preH = (int)(300 * currentScale);
     int compH = (int)(300 * currentScale);
-    int eqH = (eqSelector.getSelectedId() == 2) ? (int)(600 * currentScale) : (int)(300 * currentScale);
+    int eqH = (eqStepper.getSelectedId() == 2) ? (int)(600 * currentScale) : (int)(300 * currentScale);
     int outH = (int)(300 * currentScale);
 
     int preY = taskBarH;
@@ -890,13 +882,11 @@ void AnalogFxAudioProcessorEditor::resized()
     int presetH = (int)(28 * currentScale);
     presetSelector.setBounds((w - presetW) / 2, (taskBarH - presetH) / 2, presetW, presetH);
 
-    // Embed Module Selectors cleanly inside Section Header Banners
-    preampSelector.setBounds((int)(280 * currentScale), preY + (int)(11 * currentScale), selectorW, selectorH);
-    compSelector.setBounds((int)(310 * currentScale), compY + (int)(11 * currentScale), selectorW, selectorH);
-    eqSelector.setBounds((int)(280 * currentScale), eqY + (int)(11 * currentScale), selectorW, selectorH);
-    outputSelector.setBounds((int)(240 * currentScale), outY + (int)(11 * currentScale), selectorW, selectorH);
-    
-    scaleSelector.setBounds(w - selectorW - margin, preY + (int)(11 * currentScale), selectorW, selectorH);
+    // Embed Module Steppers cleanly inside Section Header Banners
+    preampStepper.setBounds((int)(280 * currentScale), preY + (int)(6 * currentScale), selectorW, selectorH);
+    compStepper.setBounds((int)(310 * currentScale), compY + (int)(6 * currentScale), selectorW, selectorH);
+    eqStepper.setBounds((int)(280 * currentScale), eqY + (int)(6 * currentScale), selectorW, selectorH);
+    outputStepper.setBounds((int)(240 * currentScale), outY + (int)(6 * currentScale), selectorW, selectorH);
     
     // Oversampling Button (Top section, away from meter)
     int osW = (int)(140 * currentScale);
@@ -905,15 +895,6 @@ void AnalogFxAudioProcessorEditor::resized()
     int osY = preY + (int)(60 * currentScale);
     oversamplingButton.setBounds(osX, osY, osW, osH);
     oversamplingLabel.setBounds(osX, osY + osH, osW, (int)(15 * currentScale));
-
-    // Safe Button Layout (Output section, away from meter)
-    int safeW = (int)(120 * currentScale);
-    int safeH = (int)(40 * currentScale);
-    int safeX = w - safeW - (int)(150 * currentScale);
-    int safeY = outY + (int)(60 * currentScale);
-    for (auto& b : outputButtons) {
-        b->setBounds(safeX, safeY, safeW, safeH);
-    }
 
     auto getKnobSize = [&](int section, const juce::String& id) {
         if (section == 0) return (int)(120 * currentScale); // Preamp
@@ -970,16 +951,16 @@ void AnalogFxAudioProcessorEditor::resized()
     layoutSection(eqSliders, eqLabels, eqY, 2);
     layoutSection(outputSliders, outputLabels, outY, 3);
     
-    // Layout EQ Buttons
-    int btnX = margin + selectorW + margin;
-    int btnY = eqY + (int)(20 * currentScale);
+    // Layout EQ Buttons (Positioned below section header banner to prevent collisions)
+    int btnX = margin + (int)(20 * currentScale);
+    int btnY = eqY + (int)(45 * currentScale);
     for (auto& b : eqButtons) {
         if (b->isVisible()) {
-            b->setBounds(btnX, btnY, (int)(80 * currentScale), selectorH);
+            b->setBounds(btnX, btnY, (int)(80 * currentScale), (int)(24 * currentScale));
             btnX += (int)(90 * currentScale);
             if (btnX > w - (int)(150 * currentScale)) {
-                btnX = margin + selectorW + margin;
-                btnY += selectorH + (int)(5 * currentScale);
+                btnX = margin + (int)(20 * currentScale);
+                btnY += (int)(30 * currentScale);
             }
         }
     }
