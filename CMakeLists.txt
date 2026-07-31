@@ -5,7 +5,7 @@ if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "" FORCE)
 endif()
 
-project(AnalogFx VERSION 2.3.0)
+project(AnalogFx VERSION 2.3.1)
 
 # Fetch JUCE
 include(FetchContent)
